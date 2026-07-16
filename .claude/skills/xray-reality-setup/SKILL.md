@@ -36,14 +36,19 @@ tag rather than `master` — `master` is a moving target, and this skill pins th
 Xray version precisely to avoid the compat breakage described in Notes. Pinning
 the installer but not its entry point defeats that.
 
-Show the script to the user before executing it:
+Fetch it, check it against the checksum pinned here, and review it before
+running. The hash lives in this skill, not in the repo — so a moved tag or a
+tampered file fails the check (a bare `sha256sum` with nothing to compare
+against does not):
 
 ```bash
-SETUP_REF=v1.0.0   # pinned release tag (or a commit SHA)
+SETUP_REF=v1.0.1   # pinned release tag
+EXPECTED_SHA256=921244ea7bc6ff0b4172c42ed9bbd150d02046ff683558c6c01431fc27d5e19f
 SETUP_URL="https://raw.githubusercontent.com/cyb3ralbert/sing-box-public/${SETUP_REF}/setup-server.sh"
 
 curl -fsSL "$SETUP_URL" -o /tmp/setup-server.sh
-sha256sum /tmp/setup-server.sh
+echo "${EXPECTED_SHA256}  /tmp/setup-server.sh" | sha256sum -c - || {
+  echo "Checksum mismatch — refusing to run." >&2; exit 1; }
 less /tmp/setup-server.sh
 ```
 
@@ -65,24 +70,31 @@ Script does automatically:
 - Starts `xray.service`
 - Prints sing-box client snippet with all values
 
-### 3. Force IPv4 egress
-
-Do this on every install. If the server has IPv6, Xray exits via IPv6 by
-default, clients see an IPv6 address, and some apps break. Verify the outbound
-is present and fix it if not:
+Gate on it before moving on — don't discover a dead service at step 6 (adjust
+`:443` if you set a custom `SERVER_PORT`):
 
 ```bash
-ssh root@<SERVER_IP> 'jq ".outbounds" /etc/xray/config.json'
+ssh root@<SERVER_IP> 'systemctl is-active xray && ss -tlnp | grep -q ":443 " && echo OK'
+```
+
+### 3. Confirm IPv4 egress
+
+`setup-server.sh` (≥ v1.0.1) already writes the `freedom` outbound with
+`domainStrategy: UseIPv4`. Without it, an IPv6-capable server exits over IPv6,
+clients see an IPv6 address, and some apps break. This step just confirms it:
+
+```bash
+ssh root@<SERVER_IP> 'jq -c ".outbounds" /etc/xray/config.json'
 ```
 
 Expected:
 
 ```json
-[{"protocol": "freedom", "settings": {"domainStrategy": "UseIPv4"}}]
+[{"protocol":"freedom","settings":{"domainStrategy":"UseIPv4"}}]
 ```
 
-If `domainStrategy` is missing, set it on the server with the same backup →
-`xray -test` → `mv` pattern used in step 4:
+Only if it is missing — a server provisioned before v1.0.1, or a hand-edited
+config — set it with the same backup → `xray -test` → `mv` pattern as step 4:
 
 ```bash
 ssh root@<SERVER_IP> bash -s <<'EOF'
@@ -105,7 +117,7 @@ EOF
 
 Each device gets its own UUID.
 
-Dependencies — neither is present on a stock Debian image:
+`jq` is not on a stock Debian image:
 
 ```bash
 apt-get update && apt-get install -y jq
@@ -153,7 +165,8 @@ fi
 
 ### 5. Configure client (sing-box)
 
-Use the snippet from step 2. Key fingerprint values by sing-box version:
+Use the snippet from step 2. Set the uTLS fingerprint by sing-box version —
+`chrome` is broken with Xray 25.3.6+ (connects but passes no traffic):
 - 1.12.8 (Android/Termux) → `firefox`
 - 1.12.12+ (desktop/VM) → `randomized`
 
@@ -168,6 +181,13 @@ no_proxy="" curl -x socks5h://127.0.0.1:<LOCAL_SOCKS_PORT> --max-time 8 ifconfig
 `<LOCAL_SOCKS_PORT>` is the local inbound port from the client snippet, not the
 server port.
 
+If it hangs or returns nothing, triage in order:
+- Server side: `ssh root@<SERVER_IP> 'journalctl -u xray -n 50 --no-pager'`.
+- Client side: a wrong uTLS fingerprint is the usual cause — recheck step 5
+  (`chrome` passes no traffic).
+- Network: the exit IP came back IPv6 (step 3), or a firewall blocks the port —
+  `nc -zv <SERVER_IP> 443`.
+
 ## Teardown
 
 ```bash
@@ -181,7 +201,6 @@ UUIDs are regenerated, so every client snippet must be reissued.
 ## Notes
 
 - Donor domain must support TLS 1.3. **habr.com** is the recommended default (stable, tested).
-- **CRITICAL — fingerprint**: use `firefox` (mobile) or `randomized` (desktop). `chrome` is broken with Xray 25.3.6+ on many clients — connects but no traffic.
 - Recommended xray version: **25.3.6** (pinned in setup-server.sh). Newer versions (25.8.x+) may break Reality client compat.
 - Port 443 mimics HTTPS — works through most firewalls.
 - Config path here is `/etc/xray/config.json`. Upstream Xray-install defaults to `/usr/local/etc/xray/config.json` — check which one `xray.service` actually loads before editing (`systemctl cat xray`).
