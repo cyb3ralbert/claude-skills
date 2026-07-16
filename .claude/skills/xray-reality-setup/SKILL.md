@@ -81,7 +81,25 @@ Expected:
 [{"protocol": "freedom", "settings": {"domainStrategy": "UseIPv4"}}]
 ```
 
-If `domainStrategy` is missing, apply it using the safe-edit procedure in step 4.
+If `domainStrategy` is missing, set it on the server with the same backup →
+`xray -test` → `mv` pattern used in step 4:
+
+```bash
+ssh root@<SERVER_IP> bash -s <<'EOF'
+set -euo pipefail
+CONFIG=/etc/xray/config.json
+cp "$CONFIG" "$CONFIG.bak"
+jq '(.outbounds[] | select(.protocol == "freedom") | .settings.domainStrategy) = "UseIPv4"' \
+  "$CONFIG" > "$CONFIG.new"
+if xray -test -config "$CONFIG.new"; then
+  mv "$CONFIG.new" "$CONFIG"
+  systemctl restart xray
+else
+  echo "Config test failed — keeping the current config" >&2
+  rm -f "$CONFIG.new"
+fi
+EOF
+```
 
 ### 4. Add more clients (optional)
 
@@ -124,7 +142,13 @@ cp "$CONFIG" "$CONFIG.bak"
 jq --arg email "phone" \
   '.inbounds[0].settings.clients |= map(select(.email != $email))' \
   "$CONFIG" > "$CONFIG.new"
-xray -test -config "$CONFIG.new" && mv "$CONFIG.new" "$CONFIG" && systemctl restart xray
+if xray -test -config "$CONFIG.new"; then
+  mv "$CONFIG.new" "$CONFIG"
+  systemctl restart xray
+else
+  echo "Config test failed — keeping the current config" >&2
+  rm -f "$CONFIG.new"
+fi
 ```
 
 ### 5. Configure client (sing-box)
