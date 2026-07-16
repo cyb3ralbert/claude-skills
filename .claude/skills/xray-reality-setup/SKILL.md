@@ -204,6 +204,6 @@ UUIDs are regenerated, so every client snippet must be reissued.
 - Recommended xray version: **25.3.6** (pinned in setup-server.sh). Newer versions (25.8.x+) may break Reality client compat.
 - Port 443 mimics HTTPS — works through most firewalls.
 - Config path here is `/etc/xray/config.json`. Upstream Xray-install defaults to `/usr/local/etc/xray/config.json` — check which one `xray.service` actually loads before editing (`systemctl cat xray`).
-- The Reality private key is generated on the VPS, so the hosting provider is inside the trust boundary. Adequate for censorship circumvention; not adequate if the threat model includes the provider itself.
+- The Reality private key is generated on the VPS, so the hosting provider is inside the trust boundary. Fine when the goal is privacy from third parties on the network; not adequate if the threat model includes the provider itself.
 - If using 3x-ui panel instead: config is managed via web UI at port 2053, not config.json directly.
 - Repo with scripts: https://github.com/cyb3ralbert/sing-box-public
