@@ -39,8 +39,8 @@ the installer but not its entry point defeats that.
 Show the script to the user before executing it:
 
 ```bash
-SETUP_REF=v1.0.0   # replace with the current release tag or a commit SHA
-SETUP_URL="https://raw.githubusercontent.com/cyb3ralbert/sing-box/${SETUP_REF}/setup-server.sh"
+SETUP_REF=v1.0.0   # pinned release tag (or a commit SHA)
+SETUP_URL="https://raw.githubusercontent.com/cyb3ralbert/sing-box-public/${SETUP_REF}/setup-server.sh"
 
 curl -fsSL "$SETUP_URL" -o /tmp/setup-server.sh
 sha256sum /tmp/setup-server.sh
@@ -90,7 +90,7 @@ Each device gets its own UUID.
 Dependencies — neither is present on a stock Debian image:
 
 ```bash
-apt-get update && apt-get install -y jq moreutils
+apt-get update && apt-get install -y jq
 ```
 
 Edit with a backup and a config test. A bare `jq | sponge` will silently write
@@ -163,4 +163,4 @@ UUIDs are regenerated, so every client snippet must be reissued.
 - Config path here is `/etc/xray/config.json`. Upstream Xray-install defaults to `/usr/local/etc/xray/config.json` — check which one `xray.service` actually loads before editing (`systemctl cat xray`).
 - The Reality private key is generated on the VPS, so the hosting provider is inside the trust boundary. Adequate for censorship circumvention; not adequate if the threat model includes the provider itself.
 - If using 3x-ui panel instead: config is managed via web UI at port 2053, not config.json directly.
-- Repo with scripts: https://github.com/cyb3ralbert/sing-box
+- Repo with scripts: https://github.com/cyb3ralbert/sing-box-public
